@@ -28,19 +28,19 @@ class GitHubToolSet(
 
     @Tool(customName = "git_log")
     @LLMDescription(
-        "Return commit history for a branch (or tag/commit SHA) using GraphQL. " +
-                "Parameters: owner, repo, branch (default 'main'), first (count), path (optional)."
+        "Return commit history for a file path using GraphQL. " +
+                "Parameter: path (required) - Path to the file to get commit history for."
     )
     suspend fun gitLog(
-        owner: String,
-        repo: String,
-        branch: String? = "main",
-        first: Int = 30,
-        path: String? = null
+        @LLMDescription("Path to the file to get commit history for") path: String,
+        owner: String = "JetBrains",
+        repo: String = "compose-multiplatform",
+        branch: String? = "master",
+        first: Int = 30
     ): String = withContext(Dispatchers.IO) {
 
         val query = """
-            query CommitHistory(${'$'}owner: String!, ${'$'}repo: String!, ${'$'}branch: String!, ${'$'}first: Int!, ${'$'}path: String) {
+            query CommitHistory(${'$'}owner: String!, ${'$'}repo: String!, ${'$'}branch: String!, ${'$'}first: Int!, ${'$'}path: String!) {
               repository(owner: ${'$'}owner, name: ${'$'}repo) {
                 ref(qualifiedName: ${'$'}branch) {
                   target {
@@ -69,7 +69,7 @@ class GitHubToolSet(
                 put("repo", repo)
                 put("branch", branch ?: "main")
                 put("first", first)
-                path?.let { put("path", it) }
+                put("path", path)
             })
         }
 
@@ -92,15 +92,15 @@ class GitHubToolSet(
     @Tool(customName = "git_blame")
     @LLMDescription(
         "Return blame information for a file on GitHub. " +
-                "Parameters: owner, repo, path, ref (branch / commit, default 'main')."
+                "Parameter: path (required) - Path to the file to get blame information for."
     )
     suspend fun gitBlame(
-        @LLMDescription("Repository owner (e.g. 'torvalds')") owner: String,
-        @LLMDescription("Repository name (e.g. 'linux')") repo: String,
         @LLMDescription("Path to file (e.g. 'README.md')") path: String,
-        @LLMDescription("Branch or commit reference (default 'main')") ref: String? = "main"
+        owner: String = "JetBrains",
+        repo: String = "compose-multiplatform",
+        ref: String? = "master"
     ): String = withContext(Dispatchers.IO) {
-        val effectiveRef = ref ?: "main"
+        val effectiveRef = ref ?: "master"
         val query = """
       query Blame(${'$'}owner:String!, ${'$'}repo:String!, ${'$'}ref:String!, ${'$'}path:String!) {
         repository(owner:${'$'}owner, name:${'$'}repo) {

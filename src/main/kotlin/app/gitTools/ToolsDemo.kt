@@ -7,19 +7,13 @@ fun main() = runBlocking {
     val tools = GitHubToolSet(githubToken)
 
     val commits = tools.gitLog(
-        owner = "kabachok-vpanike",
-        repo  = "clusters",
-        branch = "main",
-        first  = 10
+        path = "components/AnimatedImage/demo/src/jvmMain/kotlin/org/jetbrains/compose/animatedimage/demo/Main.kt",
     )
 
     println(Json { prettyPrint = true }.encodeToString(Json.parseToJsonElement(commits)))
 
     val blame = tools.gitBlame(
-        owner = "kabachok-vpanike",
-        repo  = "clusters",
-        path = "client/src/App.js",
-        ref   = "main"
+        path = "components/AnimatedImage/demo/src/jvmMain/kotlin/org/jetbrains/compose/animatedimage/demo/Main.kt",
     )
 
     println(Json { prettyPrint = true }.encodeToString(Json.parseToJsonElement(blame)))
