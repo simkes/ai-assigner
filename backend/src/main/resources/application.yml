@@ -1,0 +1,3 @@
+server:
+  servlet:
+    async-request-timeout: 600000
