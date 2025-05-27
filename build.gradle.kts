@@ -1,0 +1,24 @@
+plugins {
+    kotlin("jvm") version "2.1.20"
+}
+
+group = "org.example"
+version = "1.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+    maven(url = "https://packages.jetbrains.team/maven/p/grazi/grazie-platform-public")
+}
+
+dependencies {
+    testImplementation(kotlin("test"))
+    implementation("ai.koog:koog-agents:0.1.0")
+    implementation("ai.koog:code-prompt-executor-grazie-for-koog:1.0.0-beta.63+0.4.62")
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+kotlin {
+    jvmToolchain(21)
+}
