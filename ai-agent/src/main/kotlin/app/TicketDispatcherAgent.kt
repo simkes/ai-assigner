@@ -32,26 +32,25 @@ class TicketDispatcherAgent(
         }
 
         val eventHandlerConfig: EventHandlerConfig.() -> Unit = {
-            val eventHandlerConfig: EventHandlerConfig.() -> Unit = {
-                onToolCall = { tool, toolArgs ->
-                    logger.info("Tool called: ${tool.name} with args: $toolArgs")
-                }
-
-                // Log when a tool call completes successfully
-                onToolCallResult = { tool, toolArgs, result ->
-                    logger.info("Tool ${tool.name} completed with result: ${result?.toStringDefault()}")
-                }
-
-                // Log when a tool call fails
-                onToolCallFailure = { tool, toolArgs, throwable ->
-                    logger.error("Tool ${tool.name} failed with error: ${throwable.message}")
-                }
-
-                // Log when a validation error occurs during a tool call
-                onToolValidationError = { tool, toolArgs, value ->
-                    logger.warn("Tool ${tool.name} validation error with value: $value")
-                }
+            onToolCall = { tool, toolArgs ->
+                logger.info("Tool called: ${tool.name} with args: $toolArgs")
             }
+
+            // Log when a tool call completes successfully
+            onToolCallResult = { tool, toolArgs, result ->
+                logger.info("Tool ${tool.name} completed with result: ${result?.toStringDefault()}")
+            }
+
+            // Log when a tool call fails
+            onToolCallFailure = { tool, toolArgs, throwable ->
+                logger.error("Tool ${tool.name} failed with error: ${throwable.message}")
+            }
+
+            // Log when a validation error occurs during a tool call
+            onToolValidationError = { tool, toolArgs, value ->
+                logger.warn("Tool ${tool.name} validation error with value: $value")
+            }
+
         }
 
         // Initialize the agent
@@ -93,7 +92,6 @@ class TicketDispatcherAgent(
                 **Output**  
                 When done, return exactly this JSON structure and stop calling any more tools:
                 
-                ```json
                 {
                   "summary":   "<concise rationale for your recommendations>",
                   "assignees": [
