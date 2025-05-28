@@ -1,6 +1,7 @@
 package com.example
 
 import app.TicketDispatcherAgent
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.springframework.stereotype.Service
 
@@ -18,6 +19,11 @@ class AgentServiceAdapter {
         }
     }
 
+    fun getLogFlow() = agent.logs
+
     suspend fun dispatchTicket(description: String): String =
         agent.recommendAssignees(description)
+
+    // Expose the logs flow from the agent
+    val agentLogs: Flow<String> get() = agent.logs
 }

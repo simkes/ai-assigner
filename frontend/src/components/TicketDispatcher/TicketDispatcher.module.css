@@ -1,15 +1,17 @@
 .container {
+    /* layout */
     display: flex;
     flex-direction: column;
+    gap: 1rem;          /* space between children */
 
+    /* center horizontally */
     position: absolute;
-    top: 50%;
     left: 50%;
-    width: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);   /* ✱ remove the Y part */
 
-    align-content: center;
-    justify-content: center;
+    /* width & top margin */
+    width: 50%;
+    top: 5rem;         /* or whatever vertical offset you like */
 }
 
 .container::-webkit-scrollbar {
@@ -60,4 +62,17 @@
 
 .assigneesList li {
     margin-bottom: 2rem;
+}
+
+.logs {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.fadeIn {
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+.fadeIn.visible {
+    opacity: 1;
 }

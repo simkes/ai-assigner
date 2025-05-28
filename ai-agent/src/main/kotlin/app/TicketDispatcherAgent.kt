@@ -10,7 +10,43 @@ import ai.koog.prompt.executor.clients.grazie.JetBrainsAIModels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import app.gitTools.GitHubToolSet
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import org.slf4j.LoggerFactory
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+
+@Serializable
+sealed class LogMessage {
+    abstract val type: String
+    abstract val toolName: String
+    abstract val timestamp: Long
+}
+
+@Serializable
+data class ToolCallLogMessage(
+    override val type: String = "CALL",
+    override val toolName: String,
+    override val timestamp: Long = System.currentTimeMillis(),
+    val args: String
+) : LogMessage()
+
+@Serializable
+data class ToolResultLogMessage(
+    override val type: String = "OK",
+    override val toolName: String,
+    override val timestamp: Long = System.currentTimeMillis(),
+    val result: String
+) : LogMessage()
+
+@Serializable
+data class ToolErrorLogMessage(
+    override val type: String = "ERROR",
+    override val toolName: String,
+    override val timestamp: Long = System.currentTimeMillis(),
+    val error: String
+) : LogMessage()
 
 class TicketDispatcherAgent(
     private val prodToken: String,
@@ -19,36 +55,64 @@ class TicketDispatcherAgent(
 ) {
     private val logger = LoggerFactory.getLogger(TicketDispatcherAgent::class.java)
     private lateinit var agent: AIAgent
+    private val json = Json { prettyPrint = false; encodeDefaults = true }
+
+    private val _logs = MutableSharedFlow<String>(extraBufferCapacity = 100)
+    val logs = _logs.asSharedFlow()
 
     suspend fun initialize() {
 
-        val youtrackTools = getYoutrackReadTools()
+//        val youtrackTools = getYoutrackReadTools()
         val toolRegistry = ToolRegistry {
             tools(
                 SearchTools(stgnToken).asTools() +
-                        GitHubToolSet(githubToken).asTools() +
-                        youtrackTools
+                        GitHubToolSet(githubToken).asTools()
+//                        + youtrackTools
             )
         }
 
         val eventHandlerConfig: EventHandlerConfig.() -> Unit = {
             onToolCall = { tool, toolArgs ->
                 logger.info("Tool called: ${tool.name} with args: $toolArgs")
+
+                val logMessage = ToolCallLogMessage(
+                    toolName = tool.name,
+                    args = toolArgs.toString()
+                )
+                _logs.tryEmit(json.encodeToString(logMessage))
             }
 
             // Log when a tool call completes successfully
             onToolCallResult = { tool, toolArgs, result ->
                 logger.info("Tool ${tool.name} completed with result: ${result?.toStringDefault()}")
+
+                val logMessage = ToolResultLogMessage(
+                    toolName = tool.name,
+                    result = result?.toStringDefault() ?: "null"
+                )
+                _logs.tryEmit(json.encodeToString(logMessage))
             }
 
             // Log when a tool call fails
             onToolCallFailure = { tool, toolArgs, throwable ->
                 logger.error("Tool ${tool.name} failed with error: ${throwable.message}")
+
+                val logMessage = ToolErrorLogMessage(
+                    toolName = tool.name,
+                    error = throwable.message ?: "Unknown error"
+                )
+                _logs.tryEmit(json.encodeToString(logMessage))
             }
 
             // Log when a validation error occurs during a tool call
             onToolValidationError = { tool, toolArgs, value ->
                 logger.warn("Tool ${tool.name} validation error with value: $value")
+
+                val logMessage = ToolErrorLogMessage(
+                    toolName = tool.name,
+                    error = "Validation error: $value"
+                )
+                _logs.tryEmit(json.encodeToString(logMessage))
             }
 
         }
@@ -60,7 +124,7 @@ class TicketDispatcherAgent(
             systemPrompt = """
                 You are **Ticket-Dispatcher AI**.  
                 Your goal is to recommend the best person(s) to assign a ticket to, based on both the relevance of code ownership and the deeper context of each contributor's work.
-                
+
                 **Available tools**  
                 1. **search(query: String)** → returns file paths matching text query  
                 2. **git_blame(input: GitBlameInput)** → returns ranges of lines and their last-author commits for a file  
@@ -69,12 +133,12 @@ class TicketDispatcherAgent(
                 5. **search_issues(query: String, limit: Integer, offset: Integer)** → searches for issues using query syntax
                 6. **read_issue_links(id: String, issueLinkId: String)** → reads links of the issue with specific ID
                 7. **read_issueLink(id: String)** → gets data for specific link of the issue
-                
+
                 **Workflow**  
                 If the user input is just an issue number or ID (e.g., XYZ-4321):
                 1. Call **get_issue_details** to retrieve complete information about the issue.
                 2. If needed, use **read_issueLink** or **read_issue_links** to get additional context from linked issues.
-                
+
                 For regular ticket assignment:
                 1. If the input contains an issue ID, call **get_issue_details** to get complete information.
                 2. Optionally use **search_issues** with a limited number of results to find related tickets.
@@ -88,10 +152,10 @@ class TicketDispatcherAgent(
                    2. Breadth and depth of changes (major refactors vs. small tweaks)  
                    3. Contextual fit (did they implement the feature or fix similar bugs?)  
                 7. Synthesize your findings into a **ranked list** of assignees (best fit first).  
-                
+
                 **Output**  
                 When done, return exactly this JSON structure and stop calling any more tools:
-                
+
                 {
                   "summary":   "<concise rationale for your recommendations>",
                   "assignees": [
