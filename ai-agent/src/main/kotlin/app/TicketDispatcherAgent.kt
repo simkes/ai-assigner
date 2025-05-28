@@ -54,20 +54,20 @@ class TicketDispatcherAgent(
     private val githubToken: String
 ) {
     private val logger = LoggerFactory.getLogger(TicketDispatcherAgent::class.java)
-    private lateinit var agent: AIAgent
+    private lateinit var processingAgent: AIAgent
+    private lateinit var formattingAgent: AIAgent
     private val json = Json { prettyPrint = false; encodeDefaults = true }
 
     private val _logs = MutableSharedFlow<String>(extraBufferCapacity = 100)
     val logs = _logs.asSharedFlow()
 
     suspend fun initialize() {
-
-//        val youtrackTools = getYoutrackReadTools()
+        val youtrackTools = getYoutrackReadTools()
         val toolRegistry = ToolRegistry {
             tools(
                 SearchTools(stgnToken).asTools() +
                         GitHubToolSet(githubToken).asTools()
-//                        + youtrackTools
+                       + youtrackTools
             )
         }
 
@@ -114,11 +114,10 @@ class TicketDispatcherAgent(
                 )
                 _logs.tryEmit(json.encodeToString(logMessage))
             }
-
         }
 
-        // Initialize the agent
-        agent = simpleSingleRunAgent(
+        // Initialize the processing agent that does all the work
+        processingAgent = simpleSingleRunAgent(
             executor = AgentExecutor(prodToken).getLLMExecutor(),
             llmModel = JetBrainsAIModels.OpenAI.GPT4oMini,
             systemPrompt = """
@@ -131,13 +130,10 @@ class TicketDispatcherAgent(
                 3. **git_log(input: GitLogInput)** → returns recent commits for a branch or path
                 4. **get_issue_details(issueId: String, fields: String)** → retrieves complete details for a specified issue
                 5. **search_issues(query: String, limit: Integer, offset: Integer)** → searches for issues using query syntax
-                6. **read_issue_links(id: String, issueLinkId: String)** → reads links of the issue with specific ID
-                7. **read_issueLink(id: String)** → gets data for specific link of the issue
 
                 **Workflow**  
                 If the user input is just an issue number or ID (e.g., XYZ-4321):
                 1. Call **get_issue_details** to retrieve complete information about the issue.
-                2. If needed, use **read_issueLink** or **read_issue_links** to get additional context from linked issues.
 
                 For regular ticket assignment:
                 1. If the input contains an issue ID, call **get_issue_details** to get complete information.
@@ -151,22 +147,51 @@ class TicketDispatcherAgent(
                    1. Recency of changes (who's been active lately)  
                    2. Breadth and depth of changes (major refactors vs. small tweaks)  
                    3. Contextual fit (did they implement the feature or fix similar bugs?)  
-                7. Synthesize your findings into a **ranked list** of assignees (best fit first).  
+                7. Synthesize your findings into a detailed analysis of potential assignees.
 
                 **Output**  
-                When done, return exactly this JSON structure and stop calling any more tools:
+                When done, provide a detailed analysis of potential assignees, including their contributions, expertise, and relevance to the ticket.
+                Include all the information you've gathered about each potential assignee, such as their recent commits, areas of expertise, and why they might be suitable for this ticket.
+            """.trimIndent(),
+            toolRegistry = toolRegistry,
+            maxIterations = 100,
+            installFeatures = {
+                install(EventHandler, eventHandlerConfig)
+            }
+        )
+
+        // Initialize the formatting agent that transforms the output
+        formattingAgent = simpleSingleRunAgent(
+            executor = AgentExecutor(prodToken).getLLMExecutor(),
+            llmModel = JetBrainsAIModels.OpenAI.GPT4oMini,
+            systemPrompt = """
+                You are a formatting agent for the Ticket-Dispatcher AI.
+                Your job is to take the detailed analysis provided by the processing agent and transform it into a structured JSON format.
+
+                You will receive a detailed analysis of potential assignees for a ticket, including their contributions, expertise, and relevance.
+                Your task is to extract the most relevant information and format it according to the required JSON structure.
+
+                **Output**  
+                When done, return exactly this JSON structure and stop:
 
                 {
-                  "summary":   "<concise rationale for your recommendations>",
+                  "summary": "<concise rationale for your recommendations>",
                   "assignees": [
                     { "login": "alice.johnson", "name": "Alice Johnson", "reason": "<why alice is top choice>" },
                     { "login": "bob.bobby.bob", "name": "Bob Williams", "reason": "<why bob is next best>" },
                     { "login": "charlie445", "name": "Charlie Smith", "reason": "<next>" }
                   ]
                 }
+
+                Make sure to:
+                1. Extract the most relevant assignees from the analysis
+                2. Provide a concise summary of the rationale
+                3. For each assignee, include their login, full name, and a brief reason why they are recommended
+                4. List assignees in order of relevance (best fit first)
+                5. Return valid JSON that exactly matches the structure above
             """.trimIndent(),
-            toolRegistry = toolRegistry,
-            maxIterations = 100,
+            toolRegistry = ToolRegistry { },  // No tools needed for formatting agent
+            maxIterations = 10,
             installFeatures = {
                 install(EventHandler, eventHandlerConfig)
             }
@@ -175,6 +200,10 @@ class TicketDispatcherAgent(
 
     suspend fun recommendAssignees(description: String): String =
         withContext(Dispatchers.IO) {
-            agent.runAndGetResult(description).toString()
+            // First, run the processing agent to analyze the ticket and identify potential assignees
+            val processingResult = processingAgent.runAndGetResult(description).toString()
+
+            // Then, run the formatting agent to transform the processing result into the required JSON format
+            formattingAgent.runAndGetResult(processingResult).toString()
         }
 }
