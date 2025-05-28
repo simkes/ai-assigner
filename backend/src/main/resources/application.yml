@@ -1,3 +1,9 @@
 server:
+  port: 8081
   servlet:
     async-request-timeout: 600000
+
+logging:
+  level:
+    app.TicketDispatcherAgent: INFO
+    root: INFO

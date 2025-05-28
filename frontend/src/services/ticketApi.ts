@@ -14,7 +14,7 @@ export interface TicketResponse {
 export const ticketApi = createApi({
     reducerPath: "ticketApi",
     baseQuery: fetchBaseQuery({
-        baseUrl: "http://localhost:8080/api/tickets/",
+        baseUrl: "http://localhost:8081/api/tickets/",
     }),
     endpoints: (build) => ({
         dispatch: build.mutation<

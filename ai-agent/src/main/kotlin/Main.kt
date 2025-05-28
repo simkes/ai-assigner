@@ -7,6 +7,7 @@ import ai.koog.prompt.executor.clients.grazie.JetBrainsAIModels
 import kotlinx.coroutines.runBlocking
 import app.gitTools.GitHubToolSet
 
+//obsolete
 fun main() = runBlocking {
     val prodToken = System.getenv("GRAZIE_PROD_TOKEN") ?: error("GRAZIE_PROD_TOKEN environment variable is not set")
     val stgnToken = System.getenv("GRAZIE_STGN_TOKEN") ?: error("GRAZIE_STGN_TOKEN environment variable is not set")
